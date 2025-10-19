@@ -3,6 +3,7 @@ import time
 import random
 import warnings
 import argparse
+import pathlib
 
 import numpy as np
 import pytorch_lightning as pl
@@ -61,7 +62,13 @@ def parse_args():
     # Data
     parser.add_argument(
         '-dataset', type=str, default=None,
-        help='the dataset used in this experiment [synblink50knpy, hust]')
+        help='the dataset used in this experiment [synblink50knpy, hust, talkingface]')
+    parser.add_argument(
+        '-seq_length', type=int, default=13,
+        help='number of frames per sample (used by talkingface pipeline)')
+    parser.add_argument(
+        '-talkingface_root', type=str, default=str(pathlib.Path('BlinkFormer') / 'data_preprocess' / 'talking_face'),
+        help='path to Talking Face preprocessed npy files')
         
     # Model
     parser.add_argument(
@@ -161,6 +168,9 @@ def single_run():
         data_module = HUSTDataModule(configs=args)
     elif args.dataset == "synblink50knpy":
         data_module = SynthBlinkNPYDataModule(configs=args)
+    elif args.dataset == "talkingface":
+        args.talkingface_root = os.path.abspath(os.path.expanduser(args.talkingface_root))
+        data_module = TalkingFaceDataModule(configs=args)
     else:
         raise NotImplementedError("No such dataset")
     

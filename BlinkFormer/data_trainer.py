@@ -6,6 +6,7 @@ from torch.utils.data.dataloader import DataLoader
 from HUSTDataset import HUSTDataset
 import data_transform as T
 from SynthBlink_50K_Dataset_npy import SynthBlinkDataset
+from TalkingFaceDataset import TalkingFaceDataset
 from torchvision import transforms
 
 
@@ -135,6 +136,74 @@ class SynthBlinkNPYDataModule(pl.LightningDataModule):
             shuffle=False,
             drop_last=False,
         )
+
+
+class TalkingFaceDataModule(pl.LightningDataModule):
+	def __init__(self, configs):
+		super().__init__()
+		self.configs = configs
+
+	def get_dataset(self, mode, transform):
+		dataset = TalkingFaceDataset(
+			root_path=self.configs.talkingface_root,
+			mode=mode,
+			seq_length=self.configs.seq_length,
+			transform=transform,
+			eye_size=(48, 48),
+			config=self.configs,
+		)
+		return dataset
+
+	def setup(self, stage):
+
+		mean, std = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+
+		train_transform = T.Compose([
+			transforms.RandomHorizontalFlip(p=0.5),
+			transforms.ColorJitter(brightness=(0.5, 1.5), contrast=(0.5, 2.0), saturation=(0.5, 1.5), hue=(-0.5, 0.5)),
+			transforms.RandomGrayscale(0.25),
+			transforms.RandomApply([transforms.RandomRotation(90)], p=0.3),
+			T.ToTensor(),
+			T.Normalize(mean, std),
+			transforms.RandomApply([transforms.ColorJitter(brightness=(0.2, 0.8))], p=0.3),
+		])
+
+		eval_transform = T.Compose([
+			T.ToTensor(),
+			T.Normalize(mean, std),
+		])
+
+		self.train_dataset = self.get_dataset("train", train_transform)
+		self.val_dataset = self.get_dataset("val", eval_transform)
+		self.test_dataset = self.get_dataset("test", eval_transform)
+
+	def train_dataloader(self):
+		return DataLoader(
+			self.train_dataset,
+			batch_size=self.configs.batch_size,
+			num_workers=self.configs.num_workers,
+			shuffle=True,
+			drop_last=True,
+			pin_memory=False,
+		)
+
+	def val_dataloader(self):
+		return DataLoader(
+			self.val_dataset,
+			batch_size=self.configs.batch_size,
+			num_workers=self.configs.num_workers,
+			shuffle=False,
+			drop_last=False,
+		)
+
+	def test_dataloader(self):
+		return DataLoader(
+			self.test_dataset,
+			batch_size=self.configs.batch_size,
+			num_workers=self.configs.num_workers,
+			shuffle=False,
+			drop_last=False,
+		)
 
 
 if __name__ == "__main__":

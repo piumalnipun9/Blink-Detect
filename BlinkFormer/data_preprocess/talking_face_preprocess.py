@@ -135,6 +135,36 @@ def process_split(image_dir: pathlib.Path, points_dir: pathlib.Path, output_dir:
     return samples
 
 
+def split_mapping(mapping: Dict[str, int], val_ratio: float, test_ratio: float, seed: int = 42) -> Tuple[Dict[str, int], Dict[str, int], Dict[str, int]]:
+    if val_ratio < 0 or test_ratio < 0 or (val_ratio + test_ratio) >= 1:
+        raise ValueError("val_ratio and test_ratio must be >= 0 and sum to less than 1.")
+
+    items: List[Tuple[str, int]] = list(mapping.items())
+    if not items:
+        return {}, {}, {}
+
+    rng = np.random.default_rng(seed)
+    rng.shuffle(items)
+
+    total = len(items)
+    test_count = max(1 if test_ratio > 0 else 0, int(total * test_ratio))
+    val_count = max(1 if val_ratio > 0 else 0, int(total * val_ratio))
+    remaining = total - test_count - val_count
+    if remaining <= 0:
+        # ensure at least one sample for training by borrowing from val/test if necessary
+        remaining = 1
+        if test_count > 0:
+            test_count -= 1
+        elif val_count > 0:
+            val_count -= 1
+
+    train_items = items[:remaining]
+    val_items = items[remaining : remaining + val_count]
+    test_items = items[remaining + val_count : remaining + val_count + test_count]
+
+    return dict(train_items), dict(val_items), dict(test_items)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Preprocess Talking Face into BlinkFormer format.")
     parser.add_argument("--images", type=pathlib.Path, default=pathlib.Path("images/images"), help="Directory with Talking Face frames")
@@ -142,18 +172,21 @@ def main() -> None:
     parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("data_preprocess/talking_face"))
     parser.add_argument("--window", type=int, default=13)
     parser.add_argument("--stride", type=int, default=1)
+    parser.add_argument("--val_ratio", type=float, default=0.1, help="Fraction of samples to reserve for validation.")
+    parser.add_argument("--test_ratio", type=float, default=0.1, help="Fraction of samples to reserve for testing.")
+    parser.add_argument("--seed", type=int, default=42, help="RNG seed used for deterministic splitting.")
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
     mapping = process_split(args.images, args.points, args.output, window=args.window, stride=args.stride)
+    train_mapping, val_mapping, test_mapping = split_mapping(mapping, args.val_ratio, args.test_ratio, seed=args.seed)
 
     with (args.output / "train_data.json").open("w", encoding="utf-8") as handle:
-        json.dump(mapping, handle, indent=2)
-    # For simplicity split same mapping into val/test
+        json.dump(train_mapping, handle, indent=2)
     with (args.output / "val_data.json").open("w", encoding="utf-8") as handle:
-        json.dump({}, handle)
+        json.dump(val_mapping, handle, indent=2)
     with (args.output / "test_data.json").open("w", encoding="utf-8") as handle:
-        json.dump({}, handle)
+        json.dump(test_mapping, handle, indent=2)
 
 
 if __name__ == "__main__":
