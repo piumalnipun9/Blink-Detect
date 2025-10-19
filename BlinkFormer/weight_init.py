@@ -83,24 +83,24 @@ def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
 
     
-@torch.no_grad()   
+@torch.no_grad()
 def constant_init_(tensor, constant_value=0):
 	nn.init.constant_(tensor, constant_value)
 	
 
 @torch.no_grad()
 def kaiming_init_(tensor,
-                  a=0,
-                  mode='fan_out',
-                  nonlinearity='relu',
-                  distribution='normal'):
-    assert distribution in ['uniform', 'normal']
-    if distribution == 'uniform':
-    	nn.init.kaiming_uniform_(
-    		tensor, a=a, mode=mode, nonlinearity=nonlinearity)
-    else:
-    	nn.init.kaiming_normal_(
-    		tensor, a=a, mode=mode, nonlinearity=nonlinearity)
+				  a=0,
+				  mode='fan_out',
+				  nonlinearity='relu',
+				  distribution='normal'):
+	assert distribution in ['uniform', 'normal']
+	if distribution == 'uniform':
+		nn.init.kaiming_uniform_(
+			tensor, a=a, mode=mode, nonlinearity=nonlinearity)
+	else:
+		nn.init.kaiming_normal_(
+			tensor, a=a, mode=mode, nonlinearity=nonlinearity)
 
 
 @torch.no_grad()	

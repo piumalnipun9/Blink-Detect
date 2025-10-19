@@ -7,7 +7,7 @@ import pathlib
 
 import numpy as np
 import pytorch_lightning as pl
-from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 import torch
 from data_trainer import *
@@ -19,6 +19,7 @@ warnings.filterwarnings("ignore")
 from pytorch_lightning import loggers as pl_loggers
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
+from pytorch_lightning import seed_everything
 
 def parse_args():
     parser = argparse.ArgumentParser(description='lr receiver')
@@ -182,45 +183,69 @@ def single_run():
     # Trainer
     find_unused_parameters = True
 
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=ckpt_dir,
+        save_top_k=1,
+        monitor="val/F1",
+        verbose=True,
+        mode="max",
+    )
+
     num_of_gpus = torch.cuda.device_count()
 
-    checkpoint_callback = ModelCheckpoint(dirpath=ckpt_dir, save_top_k=1, monitor="val/F1",verbose=True, mode="max")
-    
+    if isinstance(args.gpus, int):
+        if args.gpus == -1:
+            requested_gpus = list(range(num_of_gpus))
+        else:
+            requested_gpus = [args.gpus]
+    else:
+        requested_gpus = [int(gpu) for gpu in args.gpus]
+
+    if num_of_gpus > 0:
+        requested_gpus = [gpu for gpu in requested_gpus if 0 <= gpu < num_of_gpus]
+        if not requested_gpus:
+            requested_gpus = list(range(num_of_gpus))
+        accelerator = "gpu"
+        devices = requested_gpus if len(requested_gpus) != num_of_gpus else num_of_gpus
+        strategy = DDPStrategy(find_unused_parameters=find_unused_parameters) if (isinstance(devices, int) and devices > 1) or (isinstance(devices, list) and len(devices) > 1) else None
+    else:
+        accelerator = "cpu"
+        devices = 1
+        strategy = None
+
+    trainer_kwargs = dict(
+        logger=tb_logger,
+        benchmark=True,
+        accelerator=accelerator,
+        devices=devices,
+    )
+
+    if strategy is not None:
+        trainer_kwargs["strategy"] = strategy
+
     if args.mode == "test":
         trainer = pl.Trainer(
-            logger=tb_logger,
-            auto_scale_batch_size=True,
-            gpus=num_of_gpus,
-            benchmark=True,
-            accelerator="ddp",
-            plugins=[
-                DDPPlugin(find_unused_parameters=find_unused_parameters),],
-            limit_train_batches=0, limit_val_batches=0)
+            **trainer_kwargs,
+            limit_train_batches=0,
+            limit_val_batches=0,
+        )
     else:
         trainer = pl.Trainer(
-            logger = tb_logger,
-            auto_scale_batch_size=True,
-            gpus = num_of_gpus,
-            benchmark=True,
-            accelerator="ddp",
-            plugins=[DDPPlugin(find_unused_parameters=find_unused_parameters),],
+            **trainer_kwargs,
             max_epochs=args.epoch,
             callbacks=[
                 checkpoint_callback,
                 LearningRateMonitor(logging_interval='step'),
             ],
-            resume_from_checkpoint=args.resume_from_checkpoint,
             check_val_every_n_epoch=1,
             log_every_n_steps=args.log_interval,
-            progress_bar_refresh_rate=args.log_interval,
-            flush_logs_every_n_steps=args.log_interval*5
         )
 
     # To be reproducable
     torch.random.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
-    pl.seed_everything(args.seed, workers=True)
+    seed_everything(args.seed, workers=True)
     
     # Model
     model = VideoClassificaiton(configs=args,
@@ -232,7 +257,10 @@ def single_run():
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
 
     print_on_rank_zero(f'{timestamp} - INFO - Start Training')
-    trainer.fit(model, data_module)
+    fit_kwargs = {}
+    if args.resume_from_checkpoint:
+        fit_kwargs["ckpt_path"] = args.resume_from_checkpoint
+    trainer.fit(model, data_module, **fit_kwargs)
 
     print_on_rank_zero(f'{timestamp} - INFO - Start Testing')
     trainer.test(ckpt_path=args.test_ckpt_path, datamodule=data_module)

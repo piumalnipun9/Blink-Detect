@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchmetrics import F1, Precision, Recall
+from torchmetrics.classification import BinaryF1Score, BinaryPrecision, BinaryRecall
 from BlinkFormer import BlinkFormer, BlinkFormer_with_BSE_head
 from optimizer import build_optimizer
 
@@ -48,7 +48,7 @@ class VideoClassificaiton(pl.LightningModule):
 			raise NotImplementedError
 		
 		self.max_F1 = 0
-		self.train_F1 = F1(multiclass=False)
+		self.train_F1 = BinaryF1Score()
 		self.loss_fn = nn.CrossEntropyLoss()
 		self.regression_loss = nn.MSELoss()
 
@@ -59,13 +59,13 @@ class VideoClassificaiton(pl.LightningModule):
 		self.do_eval = do_eval
 		self.do_test = do_test
 		if self.do_eval:
-			self.val_F1 = F1(multiclass=False)
-			self.val_Precision = Precision(multiclass=False)
-			self.val_Recall = Recall(multiclass=False)
+			self.val_F1 = BinaryF1Score()
+			self.val_Precision = BinaryPrecision()
+			self.val_Recall = BinaryRecall()
 		if self.do_test:
-			self.test_F1 = F1(multiclass=False)
-			self.test_Precision = Precision(multiclass=False)
-			self.test_Recall = Recall(multiclass=False)
+			self.test_F1 = BinaryF1Score()
+			self.test_Precision = BinaryPrecision()
+			self.test_Recall = BinaryRecall()
 
 	def configure_optimizers(self):
 		optimizer = build_optimizer(self.configs, self)
@@ -98,7 +98,7 @@ class VideoClassificaiton(pl.LightningModule):
 			if i == 1:  # only the first group is regularized
 				param_group["weight_decay"] = self._get_momentum(base_value=self.configs.weight_decay, final_value=self.configs.weight_decay_end)
 
-	def clip_gradients(self, clip_grad, norm_type=2):
+	def _clip_gradients(self, clip_grad, norm_type=2):
 		layer_norm = []
 		model_wo_ddp = self.module if hasattr(self, 'module') else self
 		for name, p in model_wo_ddp.named_parameters():
@@ -133,28 +133,36 @@ class VideoClassificaiton(pl.LightningModule):
 			loss = self.loss_fn(softmax_preds, labels)
 
 		self.log("train/loss", loss)
-		self.train_F1(preds.softmax(dim=-1), labels)
-		return {'loss': loss}
+		self.train_F1(softmax_preds[:, 1], labels)
+		return loss
 	
 	def on_after_backward(self):
-		param_norms = self.clip_gradients(self.configs.clip_grad)
+		param_norms = self._clip_gradients(self.configs.clip_grad)
 		self._weight_decay_update()
 		lr = self.optimizers().optimizer.param_groups[0]['lr']
 		self.log("train/lr", lr)
 
-	def optimizer_step(self, epoch, batch_idx, optimizer, optimizer_idx,
-		optimizer_closure, on_tpu, using_native_amp, using_lbfgs):
+	def optimizer_step(
+		self,
+		epoch,
+		batch_idx,
+		optimizer,
+		optimizer_closure,
+		on_tpu: bool = False,
+		using_native_amp: bool = False,
+		using_lbfgs: bool = False,
+	):
 		optimizer.step(closure=optimizer_closure)
 		self.iteration += 1
 
-	def training_epoch_end(self, outputs):
+	def on_train_epoch_end(self):
 		timestamp = time.strftime('%Y-%m-%d---%H-%M-%S', time.localtime())
 
 		mean_F1 = self.train_F1.compute()
 		self.print(f'{timestamp} - Train',
-					"[Epoch {}]:".format(self.trainer.current_epoch), 
-					f'F1:{mean_F1:.3f}')
-		self.log("train/F1", mean_F1)
+				"[Epoch {}]:".format(self.trainer.current_epoch), 
+				f'F1:{mean_F1:.3f}')
+		self.log("train/F1", mean_F1, prog_bar=True)
 		self.train_F1.reset()
 
 	def validation_step(self, batch, batch_indx):
@@ -165,11 +173,12 @@ class VideoClassificaiton(pl.LightningModule):
 				video_cls, _ = preds
 			else:
 				video_cls = preds
-			self.val_F1(video_cls.softmax(dim=-1), labels)
-			self.val_Precision(video_cls.softmax(dim=-1), labels)
-			self.val_Recall(video_cls.softmax(dim=-1), labels)
+			probs = video_cls.softmax(dim=-1)[:, 1]
+			self.val_F1(probs, labels)
+			self.val_Precision(probs, labels)
+			self.val_Recall(probs, labels)
 	
-	def validation_epoch_end(self, outputs):
+	def on_validation_epoch_end(self):
 		if self.do_eval:
 			mean_F1 = self.val_F1.compute()
 			mean_Precision = self.val_Precision.compute()
@@ -209,11 +218,12 @@ class VideoClassificaiton(pl.LightningModule):
 			else:
 				video_cls = preds
 			
-			self.test_F1(video_cls.softmax(dim=-1), labels)
-			self.test_Precision(video_cls.softmax(dim=-1), labels)
-			self.test_Recall(video_cls.softmax(dim=-1), labels)
+			probs = video_cls.softmax(dim=-1)[:, 1]
+			self.test_F1(probs, labels)
+			self.test_Precision(probs, labels)
+			self.test_Recall(probs, labels)
 	
-	def test_epoch_end(self, outputs):
+	def on_test_epoch_end(self):
 		if self.do_test:
 			mean_F1 = self.test_F1.compute()
 			mean_Precision = self.test_Precision.compute()
