@@ -1,2 +1,3 @@
 # Ignore raw image assets
 images/
+BlinkFormer\data_preprocess\talking_face
