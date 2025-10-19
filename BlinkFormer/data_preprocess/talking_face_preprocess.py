@@ -138,7 +138,7 @@ def process_split(image_dir: pathlib.Path, points_dir: pathlib.Path, output_dir:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Preprocess Talking Face into BlinkFormer format.")
     parser.add_argument("--images", type=pathlib.Path, default=pathlib.Path("images/images"), help="Directory with Talking Face frames")
-    parser.add_argument("--points", type=pathlib.Path, default=pathlib.Path("points"), help="Directory with 68-point .pts")
+    parser.add_argument("--points", type=pathlib.Path, default=pathlib.Path("images/points"), help="Directory with 68-point .pts")
     parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("data_preprocess/talking_face"))
     parser.add_argument("--window", type=int, default=13)
     parser.add_argument("--stride", type=int, default=1)
