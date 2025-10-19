@@ -1,0 +1,17 @@
+# Core deep learning stack
+torch>=2.1.0
+torchvision>=0.16.0
+pytorch-lightning>=2.2.0
+torchmetrics>=1.3.0
+
+# Model and data utilities
+einops>=0.7.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+tqdm>=4.66.0
+pillow>=10.0.0
+matplotlib>=3.8.0
+tensorboard>=2.15.0
+
+# Dataset preprocessing helpers
+scipy>=1.11.0
