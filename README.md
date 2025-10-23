@@ -1,5 +1,7 @@
 # [BMVC-23] SynBlink and BlinkFormer
+We recreted the results and added a pre-proccessing layer for Talking Face Dataset.
 This is the official code and data for paper [SynBlink and BlinkFormer: A Synthetic Dataset and Transformer-Based Method for Video Blink Detection](http://phi-ai.buaa.edu.cn), accepted by BMVC 2023.
+
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) 
 <a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
@@ -10,39 +12,7 @@ This is the official code and data for paper [SynBlink and BlinkFormer: A Synthe
 In this paper, we introduce a workflow for synthesizing video data in Blender. Fully-rigged 3D human models are programmatically controlled, with variations in head movement, blinking, camera angles, background types, and lighting intensities. We used this workflow to create the SynBlink dataset, which includes 50,000 video clips and their corresponding annotations. Additionally, we present BlinkFormer, an innovative blink detection algorithm based on Transformer architecture that fully exploits  temporal information from video clips. The model not only detects blinks for the entire input video but also estimates blink strength for each frame individually. Experimental results reveal that the BlinkFormer outperforms other state-of-the-art blink detection methods, achieving the highest F1-score on  HUST-LEBW dataset. This accomplishment highlights the effectiveness of our approach in accurately detecting blinks and its potential for real-world applications.
 
 ---
-
-## SynBlink Dataset
-
-![](synblink.png)
-
-
-- Download link: https://pan.baidu.com/s/1bJ0nj0SxfVCxRmICKz5p8A?pwd=synb (access code: synb)
-
-- Folder Structure
-```
-    SynBlink-50K
-    ├── F_01_0000_NB_TEB_HL
-    │   ├── 01.png
-    │   ├── 02.png
-    │   ├── ...
-    │   ├── 13.png
-    │   └── annotations.json
-    ├── ...
-    ├── M_01_0000_BL_IMB_LL
-    │   ├── 01.png
-    │   ├── 02.png
-    │   ├── ...
-    │   ├── 13.png
-    │   └── annotations.json
-    ├── ...
-    └── ...
-```
-Note: F_01_0000_NB_TEB_HL (F: Female (M: Male), id = 1, video id = 0000, NB: No Blink (BL: Blink), TEB: Texture Background (IMB: Image Background, HDB: HDRI Background), HL: High Light (LL: Low Light, ML: Medium Light))
-
-- Annotations:
-
-SynBlink-50K > F_01_0000_NB_TEB_HL > annotations.json
-
+### Example Annotations
 ```
 {
     "01": {
